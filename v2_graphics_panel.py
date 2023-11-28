@@ -7,8 +7,7 @@ Created on Tue Nov 28 11:48:49 2023
 """
 
 import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter import ttk  # for combobox
+from tkinter import ttk, filedialog, messagebox
 
 
 import matplotlib.pyplot as plt
@@ -25,7 +24,7 @@ class RadarPlotApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Radar Plotting Application")
-
+        self.geometry("800x600")  # Set a default window size
         # Initialize variables for graphics options
         self.draw_map = tk.BooleanVar(value=False)
         self.selected_colormap = tk.StringVar(value='viridis')
@@ -33,15 +32,15 @@ class RadarPlotApp(tk.Tk):
         self.create_menu()
         self.create_graphics_panel()
 
-        # Initialize plot (this can be adjusted as per your plotting logic)
+        # Initialize plot (without displaying it initially)
         self.fig, self.ax = plt.subplots()
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(fill=tk.BOTH, expand=True)
+        # Canvas widget is now initialized but not yet displayed
 
-        # Initialize a variable to store the radar data
-        self.radar_data = None
-        
+        self.radar_data = None  # Variable to store radar data
+        self.colorbar = None    # Variable to store the colorbar
+       
     def create_graphics_panel(self):
         graphics_panel = tk.Frame(self)
         graphics_panel.pack(side=tk.TOP, fill=tk.X)
@@ -123,36 +122,33 @@ class RadarPlotApp(tk.Tk):
             messagebox.showerror("Error", f"Failed to read precipitation file: {e}")
 
     def update_plot(self):
-        # Check if radar data is available
         if self.radar_data is not None:
             self.plot_data(self.radar_data)
+
         else:
             messagebox.showinfo("Info", "No radar data available to update plot.")
 
 
     def plot_data(self, data):
-        # Clear existing plot
         self.fig.clear()
-        self.ax = self.fig.add_subplot(111)
-        # Set up a map projection (if necessary)
-        projection = ccrs.PlateCarree()  # Example projection, adjust as needed
-        self.ax = plt.axes(projection=projection)
+        self.ax = self.fig.add_subplot(111, projection=ccrs.PlateCarree())  # Use Cartopy for geo-referenced data
+
+        if self.draw_map.get():
+            self.ax.coastlines(resolution='10m')
 
         # Plot data
-        reflectivity = self.ax.imshow(data, origin='lower', cmap='viridis', extent=[-180, 180, -90, 90], transform=projection)
+
+        reflectivity = self.ax.imshow(data, origin='lower', cmap=self.selected_colormap.get(), extent=[-95.75, -95, 29.5, 30.25])
 
 
-        # Add map if the option is selected
-        if self.draw_map.get():
-            self.ax.coastlines()
-        gl = self.ax.gridlines(draw_labels=True)
-        gl.top_labels = False  # Disable top x-axis labels
-        gl.right_labels = False  # Disable right y-axis labels
+        if self.colorbar:
+            self.colorbar.remove()
+        self.colorbar = self.fig.colorbar(reflectivity, ax=self.ax, orientation='vertical', pad=0.05, aspect=50)
+        self.colorbar.set_label('Reflectivity (dBZ)')
 
-        # Add a color bar
-        cbar = plt.colorbar(reflectivity, ax=self.ax, orientation='vertical', pad=0.05, aspect=50)
-        cbar.set_label('Reflectivity (dBZ)')
-
+        self.canvas.draw()
+        if not self.canvas_widget.winfo_ismapped():
+            self.canvas_widget.pack(fill=tk.BOTH, expand=True)
         # Redraw the canvas
         self.canvas.draw()
 
