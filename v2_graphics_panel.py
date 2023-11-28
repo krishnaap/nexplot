@@ -24,28 +24,30 @@ import cartopy.crs as ccrs
 class RadarPlotApp(tk.Tk):
     def __init__(self):
         super().__init__()
-
         self.title("Radar Plotting Application")
+
+        # Initialize variables for graphics options
+        self.draw_map = tk.BooleanVar(value=False)
+        self.selected_colormap = tk.StringVar(value='viridis')
+
         self.create_menu()
+        self.create_graphics_panel()
 
         # Initialize plot (this can be adjusted as per your plotting logic)
         self.fig, self.ax = plt.subplots()
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(fill=tk.BOTH, expand=True)
-        # Create graphics options panel
-        self.create_graphics_panel()
 
-        # Initialize variables for graphics options
-        self.draw_map = tk.BooleanVar(value=False)
-        self.selected_colormap = tk.StringVar(value='viridis')
-
+        # Initialize a variable to store the radar data
+        self.radar_data = None
+        
     def create_graphics_panel(self):
         graphics_panel = tk.Frame(self)
         graphics_panel.pack(side=tk.TOP, fill=tk.X)
 
         # Radio button to toggle map
-        map_toggle = tk.Checkbutton(graphics_panel, text="Draw Map", var=self.draw_map, command=self.update_plot)
+        map_toggle = tk.Checkbutton(graphics_panel, text="Draw Map", variable=self.draw_map, command=self.update_plot)
         map_toggle.pack(side=tk.LEFT)
 
         # Dropdown for colormap selection
@@ -56,7 +58,6 @@ class RadarPlotApp(tk.Tk):
         colormap_dropdown = ttk.Combobox(graphics_panel, textvariable=self.selected_colormap, values=colormap_options, state="readonly")
         colormap_dropdown.pack(side=tk.LEFT)
         colormap_dropdown.bind("<<ComboboxSelected>>", lambda event: self.update_plot())
-
 
 
     def create_menu(self):
@@ -106,11 +107,9 @@ class RadarPlotApp(tk.Tk):
     def read_netcdf_file(self, file_path):
         try:
             dataset = nc.Dataset(file_path)
-            # Extract the REF variable
-            ref_data = dataset.variables['REF'][0, :, :]  # Assuming 'REF' is the variable name
-
-            # Plot the REF data
-            self.plot_data(ref_data)
+            # Assuming 'REF' is the variable name and storing it in the class attribute
+            self.radar_data = dataset.variables['REF'][0, :, :]
+            self.plot_data(self.radar_data)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to read NetCDF file: {e}")
 
@@ -124,17 +123,17 @@ class RadarPlotApp(tk.Tk):
             messagebox.showerror("Error", f"Failed to read precipitation file: {e}")
 
     def update_plot(self):
-        # Retrieve the current plot data (you might need to store this in a class variable)
-        # For example: data = self.current_plot_data
-
-        # Replot with new options
-        self.plot_data(data)
+        # Check if radar data is available
+        if self.radar_data is not None:
+            self.plot_data(self.radar_data)
+        else:
+            messagebox.showinfo("Info", "No radar data available to update plot.")
 
 
     def plot_data(self, data):
         # Clear existing plot
-        self.ax.clear()
-
+        self.fig.clear()
+        self.ax = self.fig.add_subplot(111)
         # Set up a map projection (if necessary)
         projection = ccrs.PlateCarree()  # Example projection, adjust as needed
         self.ax = plt.axes(projection=projection)
@@ -142,9 +141,10 @@ class RadarPlotApp(tk.Tk):
         # Plot data
         reflectivity = self.ax.imshow(data, origin='lower', cmap='viridis', extent=[-180, 180, -90, 90], transform=projection)
 
-        # Add coastlines
-        self.ax.coastlines('10m')
-        # Customize gridlines
+
+        # Add map if the option is selected
+        if self.draw_map.get():
+            self.ax.coastlines()
         gl = self.ax.gridlines(draw_labels=True)
         gl.top_labels = False  # Disable top x-axis labels
         gl.right_labels = False  # Disable right y-axis labels
@@ -163,6 +163,7 @@ class RadarPlotApp(tk.Tk):
         # Plot data with selected colormap
         colormap = self.selected_colormap.get()
         reflectivity = self.ax.imshow(data, origin='lower', cmap=colormap, extent=[-180, 180, -90, 90])  # Adjust as needed
+
         self.canvas.draw()
 
 
